@@ -130,6 +130,21 @@
     return selectedCourses;
   }
 
+  // ---------------------- 高亮冲突课程 ----------------------
+  function highlightConflicts(allCourses, conflictElements, courseNameColumnIndex) {
+    allCourses.forEach((course) => {
+      const courseElement = course.element.querySelector(`td:nth-child(${courseNameColumnIndex + 1})`);
+      if (conflictElements.has(course.element)) {
+        courseElement.style.backgroundColor = "#ffcccc";
+        const conflictingCourses = conflictElements.get(course.element).join(", ");
+        courseElement.title = `与以下课程冲突: ${conflictingCourses}`;
+      } else {
+        courseElement.style.backgroundColor = "#ccffcc";
+        courseElement.title = "";
+      }
+    });
+  }
+
   // ---------------------- 主逻辑 ----------------------
   function analyzeConflicts() {
     // 判断当前页面类型
@@ -207,17 +222,7 @@
     const allCourses = extractCoursesFromPage(parent, courseTimeColumnIndex, courseNameColumnIndex);
     const conflictElements = checkCoursesConflict(allCourses, selectedCourses);
 
-    allCourses.forEach((course) => {
-      const courseElement = course.element.querySelector(`td:nth-child(${courseNameColumnIndex + 1})`);
-      if (conflictElements.has(course.element)) {
-        courseElement.style.backgroundColor = "#ffcccc";
-        const conflictingCourses = conflictElements.get(course.element).join(", ");
-        courseElement.title = `与以下课程冲突: ${conflictingCourses}`;
-      } else {
-        courseElement.style.backgroundColor = "#ccffcc";
-        courseElement.title = "";
-      }
-    });
+    highlightConflicts(allCourses, conflictElements, courseNameColumnIndex);
   }
 
   // ---------------------- 执行 ----------------------
