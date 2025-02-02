@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name        Elective网站课程冲突高亮
 // @namespace   https://greasyfork.org/users/1429968
-// @version     0.1
+// @version     0.2
 // @description 分析已选课程与所有课程的时间冲突，并用颜色标记
 // @author      ha0xin
-// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/CourseQueryController.jpf*
-// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/getCurriculmByForm.do*
-// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/queryCurriculum.jsp*
+// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/*
+// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/electivePlan/*
+// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/electiveWork/*
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/electiveWork/showResults.do
 // @license     MIT License
 // @grant       GM_setValue
@@ -116,8 +116,8 @@
         return selectedCourses;
     }
 
-    // 从选课页面提取时间信息
-    function extractAllCourses() {
+    // 从添加课程页面提取时间信息
+    function extractQueryPageCourses() {
         const rows = document.querySelectorAll("table.datagrid tr[class*='datagrid-']");
         const allCourses = [];
 
@@ -141,24 +141,88 @@
         return allCourses;
     }
 
+    // 从选课计划页面提取时间信息
+    function extractElectivePlanCourses() {
+        const rows = document.querySelectorAll("table.datagrid tr[class*='datagrid-']");
+        const allCourses = [];
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 9) { // 确保有足够的列
+                const timeCell = cells[8]; // 第8列是时间信息
+                if (timeCell) {
+                    const timeSegments = parseCourseTime(timeCell);
+                    if (timeSegments.length > 0) {
+                        allCourses.push({
+                            element: row,
+                            name: cells[1].textContent.trim(),
+                            timeSegments: timeSegments
+                        });
+                    }
+                }
+            }
+        });
+
+        return allCourses;
+    }
+
+    // 从预选页面提取时间信息
+    function extractElectiveWorkCourses() {
+        const trs = document.querySelectorAll("#scopeOneSpan > table > tbody > tr");
+        const targetTr = Array.from(trs).find(tr => tr.textContent.includes('选课计划中本学期可选列表'));
+
+        if (!targetTr) {
+            console.warn('未找到包含"选课计划中本学期可选列表"的行');
+            return [];
+        }
+
+        const nextTr = targetTr.nextElementSibling;
+        if (!nextTr) {
+            console.warn('未找到下一个表格行');
+            return [];
+        }
+
+        const rows = nextTr.querySelectorAll("table.datagrid tr[class*='datagrid-']");
+        const allCourses = [];
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const timeCell = cells[8]; // 第9列是时间信息
+            if (timeCell) {
+                const timeSegments = parseCourseTime(timeCell);
+                if (timeSegments.length > 0) {
+                    allCourses.push({
+                        element: row,
+                        name: cells[0].textContent.trim(),
+                        timeSegments: timeSegments
+                    });
+                }
+            }
+        });
+
+        return allCourses;
+    }
+
     // ---------------------- 主逻辑 ----------------------
     function analyzeConflicts() {
         // 判断当前页面类型
-        const isSelectedPage = window.location.href.includes('showResults.do');
-        const isCoursePage = window.location.href.includes('CourseQueryController.jpf') || window.location.href.includes('getCurriculmByForm.do') || window.location.href.includes('queryCurriculum.jsp');
+        const isResultPage = window.location.href.includes('showResults.do');
+        const isQueryPage = window.location.href.includes('CourseQueryController.jpf') || window.location.href.includes('getCurriculmByForm.do') || window.location.href.includes('queryCurriculum.jsp');
+        const isPlanPage = window.location.href.includes('ElectivePlanController.jpf');
+        const isWorkPage = window.location.href.includes('ElectiveWorkController.jpf') || window.location.href.includes('election.jsp');
 
-        if (isSelectedPage) {
+        if (isResultPage) {
             // 已选课程页面：提取数据并存储
             console.log('已选课程页面');
             const selectedCourses = extractSelectedCourses();
             GM_setValue('selectedCourses', JSON.stringify(selectedCourses));
             console.log('已选课程数据已存储', selectedCourses);
-        } else if (isCoursePage) {
-            // 选课页面：获取已选课程数据并比对冲突
+        } else if (isQueryPage) {
+            // 添加课程页面：获取已选课程数据并比对冲突
             console.log('添加课程页面');
             const selectedCourses = JSON.parse(GM_getValue('selectedCourses', '[]'));
             console.log(selectedCourses);
-            const allCourses = extractAllCourses();
+            const allCourses = extractQueryPageCourses();
             console.log(allCourses);
 
             if (selectedCourses.length === 0) {
@@ -170,6 +234,59 @@
             const conflictElements = checkCoursesConflict(allCourses, selectedCourses);
             allCourses.forEach(course => {
                 const courseElement = course.element.querySelector('td:nth-child(2)');
+                if (conflictElements.has(course.element)) {
+                    courseElement.style.backgroundColor = '#ffcccc';
+                    const conflictingCourses = conflictElements.get(course.element).join(', ');
+                    courseElement.title = `与以下课程冲突: ${conflictingCourses}`;
+                } else {
+                    courseElement.style.backgroundColor = '#ccffcc';
+                    courseElement.title = '';
+                }
+            });
+        } else if (isPlanPage) {
+            // 选课计划页面
+            console.log('选课计划页面');
+            const selectedCourses = JSON.parse(GM_getValue('selectedCourses', '[]'));
+            console.log(selectedCourses);
+            const allCourses = extractElectivePlanCourses();
+            console.log(allCourses);
+
+            if (selectedCourses.length === 0) {
+                console.log('未找到已选课程数据，请先访问已选课程页面');
+                return;
+            }
+
+            // 检测冲突并高亮
+            const conflictElements = checkCoursesConflict(allCourses, selectedCourses);
+            allCourses.forEach(course => {
+                const courseElement = course.element.querySelector('td:nth-child(2)');
+                if (conflictElements.has(course.element)) {
+                    courseElement.style.backgroundColor = '#ffcccc';
+                    const conflictingCourses = conflictElements.get(course.element).join(', ');
+                    courseElement.title = `与以下课程冲突: ${conflictingCourses}`;
+                } else {
+                    courseElement.style.backgroundColor = '#ccffcc';
+                    courseElement.title = '';
+                }
+            });
+
+        } else if (isWorkPage) {
+            // 预选页面
+            console.log('预选页面');
+            const selectedCourses = JSON.parse(GM_getValue('selectedCourses', '[]'));
+            console.log(selectedCourses);
+            const allCourses = extractElectiveWorkCourses();
+            console.log(allCourses);
+
+            if (selectedCourses.length === 0) {
+                console.log('未找到已选课程数据，请先访问已选课程页面');
+                return;
+            }
+
+            // 检测冲突并高亮
+            const conflictElements = checkCoursesConflict(allCourses, selectedCourses);
+            allCourses.forEach(course => {
+                const courseElement = course.element.querySelector('td:nth-child(1)');
                 if (conflictElements.has(course.element)) {
                     courseElement.style.backgroundColor = '#ffcccc';
                     const conflictingCourses = conflictElements.get(course.element).join(', ');
