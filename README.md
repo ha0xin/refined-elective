@@ -2,7 +2,7 @@
 
 # Elective Helper
 
-[![GitHub license](https://img.shields.io/github/license/ha0xin/ElectiveHelper)](https://github.com/yourname/pku-elective-helper)
+[![GitHub license](https://img.shields.io/github/license/ha0xin/ElectiveHelper)](https://github.com/ha0xin/pku-elective-helper)
 [![Greasy Fork](https://img.shields.io/badge/install-Greasy_Fork-green)](https://greasyfork.org/zh-CN/scripts/525548)
 
 北京大学选课系统课程冲突高亮脚本
