@@ -87,7 +87,7 @@
   // ---------------------- 数据获取与处理 ----------------------
   // 通用的数据提取函数
   function extractCoursesFromPage(parent, timeColumnIndex, nameColumnIndex) {
-    const rows = parent.querySelectorAll("table.datagrid tr[class*='datagrid-']");
+    const rows = parent.querySelectorAll("table.datagrid tr:is(.datagrid-odd, .datagrid-even)");
     const allCourses = [];
 
     rows.forEach((row) => {
@@ -111,7 +111,7 @@
   }
   // 从已选课程页面提取时间信息
   function extractSelectedCourses() {
-    const rows = document.querySelectorAll("table.datagrid tr[class*='datagrid-']");
+    const rows = document.querySelectorAll("table.datagrid tr:is(.datagrid-odd, .datagrid-even)");
     const selectedCourses = [];
 
     rows.forEach((row) => {
