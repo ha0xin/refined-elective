@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Elective网站课程冲突高亮
 // @namespace   https://greasyfork.org/users/1429968
-// @version     0.4.1
+// @version     0.4.2
 // @description 分析已选课程与所有课程的时间冲突，并用颜色标记
 // @author      ha0xin
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/*
@@ -154,9 +154,12 @@
       window.location.href.includes("getCurriculmByForm.do") ||
       window.location.href.includes("queryCurriculum.jsp") ||
       window.location.href.includes("engGridFilter.do");
-    const isPlanPage = window.location.href.includes("ElectivePlanController.jpf");
+    const isPlanPage =
+      window.location.href.includes("ElectivePlanController.jpf") ||
+      window.location.href.includes("deleElecPlanCurriclum.do");
     const isWorkPage =
-      window.location.href.includes("ElectiveWorkController.jpf") || window.location.href.includes("election.jsp");
+      window.location.href.includes("ElectiveWorkController.jpf") ||
+      window.location.href.includes("election.jsp");
 
     if (isResultPage) {
       // 已选课程页面：提取数据并存储
