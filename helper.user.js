@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Elective网站课程冲突高亮
 // @namespace   https://greasyfork.org/users/1429968
-// @version     0.4
+// @version     0.4.1
 // @description 分析已选课程与所有课程的时间冲突，并用颜色标记
 // @author      ha0xin
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/*
@@ -99,7 +99,7 @@
           if (timeSegments.length > 0) {
             allCourses.push({
               element: row,
-              name: cells[1].textContent.trim(),
+              name: cells[nameColumnIndex].textContent.trim(),
               timeSegments: timeSegments,
             });
           }
