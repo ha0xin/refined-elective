@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name        Elective网站课程冲突高亮
 // @namespace   https://greasyfork.org/users/1429968
-// @version     0.4.3
+// @version     0.4.4
 // @description 分析已选课程与所有课程的时间冲突，并用颜色标记
 // @author      ha0xin
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/*
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/electivePlan/*
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/electiveWork/*
+// @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/*
 // @exclude     https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/goNested.do*
 // @license     MIT License
 // @grant       GM_setValue
@@ -118,7 +119,7 @@
       const cells = row.querySelectorAll("td");
       const timeCell = cells[7]; // 第8列是时间信息
       const timeSegments = parseCourseTime(timeCell);
-      if (timeSegments.length > 0) {
+      if (timeSegments.length > 0 && cells[8].textContent.trim() !== "未选上") {
         selectedCourses.push({
           element: row,
           name: cells[0].textContent.trim(),
@@ -159,10 +160,16 @@
       window.location.href.includes("ElectivePlanController.jpf") ||
       window.location.href.includes("deleElecPlanCurriclum.do");
     const isWorkPage =
-      window.location.href.includes("ElectiveWorkController.jpf") ||
-      window.location.href.includes("election.jsp") ||
-      window.location.href.includes("electCourse.do") ||
-      window.location.href.includes("cancelCourse.do");
+      window.location.href.includes("electiveWork/ElectiveWorkController.jpf") ||
+      window.location.href.includes("electiveWork/election.jsp") ||
+      window.location.href.includes("electiveWork/electCourse.do") ||
+      window.location.href.includes("electiveWork/cancelCourse.do");
+    const isSupplyCancelPage =
+      window.location.href.includes("supplement/SupplyCancel.do") ||
+      window.location.href.includes("supplement/supplement.jsp") ||
+      window.location.href.includes("supplement/electSupplement.do") ||
+      window.location.href.includes("supplement/cancelCourse.do");
+
 
     if (isResultPage) {
       // 已选课程页面：提取数据并存储
@@ -207,6 +214,26 @@
       console.log("预选页面");
 
       const trs = document.querySelectorAll("#scopeOneSpan > table > tbody > tr");
+      const targetTr = Array.from(trs).find((tr) => tr.textContent.includes("选课计划中本学期可选列表"));
+
+      if (!targetTr) {
+        console.warn('未找到包含"选课计划中本学期可选列表"的行');
+        return [];
+      }
+
+      const nextTr = targetTr.nextElementSibling;
+      if (!nextTr) {
+        console.warn("未找到下一个表格行");
+        return [];
+      }
+
+      courseNameColumnIndex = 0;
+      courseTimeColumnIndex = 8;
+      parent = nextTr;
+    } else if (isSupplyCancelPage) {
+      // 补退选页面
+      console.log("补退选页面");
+      const trs = document.querySelectorAll("body > table > tbody > tr");
       const targetTr = Array.from(trs).find((tr) => tr.textContent.includes("选课计划中本学期可选列表"));
 
       if (!targetTr) {
