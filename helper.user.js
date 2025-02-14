@@ -153,13 +153,16 @@
       window.location.href.includes("CourseQueryController.jpf") ||
       window.location.href.includes("getCurriculmByForm.do") ||
       window.location.href.includes("queryCurriculum.jsp") ||
-      window.location.href.includes("engGridFilter.do");
+      window.location.href.includes("engGridFilter.do") ||
+      window.location.href.includes("addToPlan.do");
     const isPlanPage =
       window.location.href.includes("ElectivePlanController.jpf") ||
       window.location.href.includes("deleElecPlanCurriclum.do");
     const isWorkPage =
       window.location.href.includes("ElectiveWorkController.jpf") ||
-      window.location.href.includes("election.jsp");
+      window.location.href.includes("election.jsp") ||
+      window.location.href.includes("electCourse.do") ||
+      window.location.href.includes("cancelCourse.do");
 
     if (isResultPage) {
       // 已选课程页面：提取数据并存储
