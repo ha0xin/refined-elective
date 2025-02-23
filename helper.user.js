@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Elective网站课程冲突高亮
 // @namespace   https://greasyfork.org/users/1429968
-// @version     0.4.4
+// @version     0.4.5
 // @description 分析已选课程与所有课程的时间冲突，并用颜色标记
 // @author      ha0xin
 // @match       https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/*
@@ -119,7 +119,7 @@
       const cells = row.querySelectorAll("td");
       const timeCell = cells[7]; // 第8列是时间信息
       const timeSegments = parseCourseTime(timeCell);
-      if (timeSegments.length > 0 && cells[8].textContent.trim() !== "未选上") {
+      if (timeSegments.length > 0 && cells[8].textContent.trim() == "已选上") {
         selectedCourses.push({
           element: row,
           name: cells[0].textContent.trim(),
