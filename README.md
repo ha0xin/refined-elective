@@ -1,6 +1,6 @@
 <div align="center">
 
-# Elective Helper
+# Refined Elective
 
 [![GitHub license](https://img.shields.io/github/license/ha0xin/ElectiveHelper)](https://github.com/ha0xin/ElectiveHelper)
 [![Greasy Fork](https://img.shields.io/badge/install-Greasy_Fork-green)](https://greasyfork.org/zh-CN/scripts/525548)
