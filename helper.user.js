@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Refined Elective
 // @namespace    https://greasyfork.org/users/1429968
-// @version      1.4.0
+// @version      1.4.1
 // @description  选课网体验增强
 // @author       ha0xin
 // @match        https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/*
@@ -251,7 +251,7 @@
       tables.forEach((table) => {
         const headers = table.querySelectorAll("tr.datagrid-header th");
         if (headers.length === 0) return;
-        const limitColumnIndex = Array.from(headers).findIndex((header) => header.textContent.trim() === "限数/已选");
+        const limitColumnIndex = Array.from(headers).findIndex((header) => header.textContent.trim().includes("限数/已选"));
         if (limitColumnIndex === -1) return;
         const limitHeader = headers[limitColumnIndex];
         if (limitHeader) {
@@ -346,6 +346,11 @@
   // 功能三：课程排序
   // =========================================================================
   const tableSorter = {
+    // 存储当前排序状态
+    currentSortColumn: null,
+    currentSortDirection: null,
+    currentTable: null,
+
     run() {
       console.log("表格排序: 正在初始化...");
       document.querySelectorAll("table.datagrid").forEach((table) => {
@@ -363,7 +368,31 @@
         });
       });
     },
+
+    // 重新应用当前的排序规则
+    reApplySort() {
+      if (this.currentSortColumn !== null && this.currentTable) {
+        console.log(`表格排序: 重新应用排序 - 列${this.currentSortColumn}, 方向${this.currentSortDirection}`);
+        this.performSort(this.currentTable, this.currentSortColumn, this.currentSortDirection, false);
+      }
+    },
     sort(table, colIndex) {
+      const tbody = table.querySelector("tbody");
+      if (!tbody) return;
+
+      const headerItem = tbody.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
+      const currentDir = headerItem.dataset.sortDir || "desc";
+      const newDir = currentDir === "desc" ? "asc" : "desc";
+      
+      // 保存排序状态
+      this.currentSortColumn = colIndex;
+      this.currentSortDirection = newDir;
+      this.currentTable = table;
+      
+      this.performSort(table, colIndex, newDir, true);
+    },
+
+    performSort(table, colIndex, sortDir, updateHeader) {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
 
@@ -377,15 +406,17 @@
         masterPaginationRow = allPaginationRows[0];
       }
 
+      if (updateHeader) {
+        const headerItem = tbody.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
+        headerItem.dataset.sortDir = sortDir;
+        tbody
+          .querySelectorAll("tr.datagrid-header th")
+          .forEach((th) => (th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, "")));
+        headerItem.innerHTML += sortDir === "asc" ? " ▲" : " ▼";
+      }
+
       const headerItem = tbody.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
-      const headerText = headerItem.textContent.trim();
-      const currentDir = headerItem.dataset.sortDir || "desc";
-      const newDir = currentDir === "desc" ? "asc" : "desc";
-      headerItem.dataset.sortDir = newDir;
-      tbody
-        .querySelectorAll("tr.datagrid-header th")
-        .forEach((th) => (th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, "")));
-      headerItem.innerHTML += newDir === "asc" ? " ▲" : " ▼";
+      const headerText = headerItem.textContent.replace(/ [▲▼]$/, "").trim();
       const isCapacityColumn = headerText.startsWith("限数/已选");
 
       dataRows.sort((a, b) => {
@@ -416,8 +447,8 @@
             valB = parseFloat(valB);
           }
         }
-        if (valA < valB) return newDir === "asc" ? -1 : 1;
-        if (valA > valB) return newDir === "asc" ? 1 : -1;
+        if (valA < valB) return sortDir === "asc" ? -1 : 1;
+        if (valA > valB) return sortDir === "asc" ? 1 : -1;
         return 0;
       });
 
@@ -523,22 +554,26 @@
         button.textContent = "全部加载完毕！";
         button.style.backgroundColor = "#90ee90";
 
-        // --- THIS IS THE KEY CHANGE ---
-        // Instead of conflictHighlighter.run(), we call the new reHighlight()
-        if (GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true)) {
-          conflictHighlighter.reHighlight();
-        }
-        // --- END OF KEY CHANGE ---
-
-        if (GM_getValue(CONFIG_PROGRESS_BAR_ENABLED, true)) {
-          progressBar.run();
-        }
-
         // 重新计算并设置所有数据行的奇偶样式
         const allDataRows = tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even)");
         allDataRows.forEach((row, i) => {
           row.className = i % 2 === 0 ? "datagrid-odd" : "datagrid-even";
         });
+
+        // 重新应用排序（如果之前有排序的话）
+        if (GM_getValue(CONFIG_TABLE_SORTER_ENABLED, true)) {
+          tableSorter.reApplySort();
+        }
+
+        // 重新应用冲突高亮
+        if (GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true)) {
+          conflictHighlighter.reHighlight();
+        }
+
+        // 重新计算进度条
+        if (GM_getValue(CONFIG_PROGRESS_BAR_ENABLED, true)) {
+          progressBar.run();
+        }
       } catch (error) {
         console.error("加载所有页面时出错:", error);
         button.textContent = "加载失败，请查看控制台";
