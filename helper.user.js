@@ -329,44 +329,44 @@
       });
     },
 
-    // --- MODIFIED SECTION START ---
     sort(table, colIndex) {
       const tbody = table.querySelector("tbody");
-      const tablerows = Array.from(tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even)"));
-      console.log(tablerows);
+      if (!tbody) return;
+
+      // 1. 先把所有数据行和所有分页栏（包括旧的克隆）都找出来
+      const dataRows = Array.from(tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even)"));
+      const allPaginationRows = Array.from(tbody.querySelectorAll('tr:has(form[name="pageForm"])'));
+      let masterPaginationRow = null;
+
+      // 2. 如果存在分页栏，我们就拿第一个作为“主”分页栏用于后续操作
+      if (allPaginationRows.length > 0) {
+        masterPaginationRow = allPaginationRows[0];
+      }
+
+      // 排序逻辑
       const headerItem = table.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
       const headerText = headerItem.textContent.trim();
-
-      // 确定排序方向
       const currentDir = headerItem.dataset.sortDir || "desc";
       const newDir = currentDir === "desc" ? "asc" : "desc";
       headerItem.dataset.sortDir = newDir;
-
-      // 更新表头视觉提示
       table
         .querySelectorAll("tr.datagrid-header th")
         .forEach((th) => (th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, "")));
       headerItem.innerHTML += newDir === "asc" ? " ▲" : " ▼";
-
-      // 检查是否为“限数/已选”列，如果是，则按百分比排序
       const isCapacityColumn = headerText.startsWith("限数/已选");
 
-      tablerows.sort((a, b) => {
+      dataRows.sort((a, b) => {
         const cellA = a.cells[colIndex];
         const cellB = b.cells[colIndex];
         let valA, valB;
-
         if (isCapacityColumn) {
-          // 自定义函数，从 "100 / 85" 这样的文本中计算百分比
           const getPercentage = (cell) => {
             if (!cell) return 0;
             const text = cell.textContent.trim();
-            if (!text.includes("/")) return -1; // 将格式不符的排在最前面
+            if (!text.includes("/")) return -1;
             const [limitStr, selectedStr] = text.split("/");
             const limit = parseInt(limitStr.trim(), 10);
             const selected = parseInt(selectedStr.trim(), 10);
-
-            // 如果限额为0或数据无效，则认为占用率为0，避免除零错误
             if (isNaN(limit) || isNaN(selected) || limit === 0) {
               return 0;
             }
@@ -375,30 +375,35 @@
           valA = getPercentage(cellA);
           valB = getPercentage(cellB);
         } else {
-          // 其他列的原始排序逻辑
           valA = cellA.textContent.trim();
           valB = cellB.textContent.trim();
           const isNumeric = !isNaN(parseFloat(valA)) && isFinite(valA) && !isNaN(parseFloat(valB)) && isFinite(valB);
-
           if (isNumeric) {
             valA = parseFloat(valA);
             valB = parseFloat(valB);
           }
         }
-
-        // 比较值
         if (valA < valB) return newDir === "asc" ? -1 : 1;
         if (valA > valB) return newDir === "asc" ? 1 : -1;
         return 0;
       });
 
-      // 重新插入排好序的行并更新样式
-      tablerows.forEach((row, i) => {
+      allPaginationRows.forEach(row => row.remove());
+
+      // 4. 按顺序重新构建表格内容
+      if (masterPaginationRow) {
+        tbody.appendChild(masterPaginationRow); // 在顶部添加主分页栏
+      }
+
+      dataRows.forEach((row, i) => {
         tbody.appendChild(row);
         row.className = i % 2 === 0 ? "datagrid-odd" : "datagrid-even";
       });
+
+      if (masterPaginationRow) {
+        tbody.appendChild(masterPaginationRow.cloneNode(true)); // 在底部添加主分页栏的克隆
+      }
     },
-    // --- MODIFIED SECTION END ---
   };
 
   // =========================================================================
