@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Refined Elective
 // @namespace    https://greasyfork.org/users/1429968
-// @version      1.3.0
-// @description  选课网体验增强（按百分比排序容量，进度条溢出显示）
+// @version      1.4.0
+// @description  选课网体验增强 (加载所有页 & 分页栏置顶/置底 & 百分比排序)
 // @author       ha0xin & Gemini
 // @match        https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/*
 // @exclude      https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/goNested.do*
@@ -15,7 +15,7 @@
 (function () {
   "use strict";
 
-  // --- 配置项：用于存储功能开关状态的键名 ---
+  // --- 配置项 ---
   const CONFIG_HIGHLIGHT_ENABLED = "conflictHighlightEnabled";
   const CONFIG_PROGRESS_BAR_ENABLED = "progressBarEnabled";
   const CONFIG_TABLE_SORTER_ENABLED = "tableSorterEnabled";
@@ -25,7 +25,12 @@
   // 功能一：课程冲突高亮
   // =========================================================================
   const conflictHighlighter = {
-    // ... (This object's code is unchanged) ...
+    // --- Properties to store column indexes ---
+    courseNameColumnIndex: null,
+    courseTimeColumnIndex: null,
+    parentScope: null,
+
+    // --- Helper functions ---
     parseTimeSegment(text) {
       const weekTypeMatch = text.match(/(每周|单周|双周)/);
       const weekType = weekTypeMatch ? weekTypeMatch[1] : "每周";
@@ -135,6 +140,27 @@
         }
       });
     },
+
+    // --- Function to re-apply highlighting using saved settings ---
+    reHighlight() {
+      console.log("课程冲突高亮: 重新高亮...");
+      if (this.courseNameColumnIndex === null || this.courseTimeColumnIndex === null) {
+        console.log("课程冲突高亮: 未找到初始列索引，跳过重新高亮。");
+        return;
+      }
+      const selectedCourses = JSON.parse(GM_getValue("selectedCourses", "[]"));
+      if (selectedCourses.length === 0) return;
+
+      const allCourses = this.extractCoursesFromPage(
+        this.parentScope,
+        this.courseTimeColumnIndex,
+        this.courseNameColumnIndex
+      );
+      const conflictElements = this.checkCoursesConflict(allCourses, selectedCourses);
+      this.highlightConflicts(allCourses, conflictElements, this.courseNameColumnIndex);
+    },
+
+    // --- Original run function, now saves its findings ---
     run() {
       const href = window.location.href;
       const isResultPage = href.includes("showResults.do");
@@ -159,20 +185,21 @@
         console.log("课程冲突高亮: 未找到已选课程数据，请先访问“已选课程”页面以同步数据。");
         return;
       }
-      let courseNameColumnIndex,
-        courseTimeColumnIndex,
+
+      let nameIndex,
+        timeIndex,
         parent = document;
       let pageType = "";
       if (isQueryPage) {
         pageType = "添加课程页面";
         const tableHeader = document.querySelector("table.datagrid tr[class*='datagrid-']");
         const isEngQueryPage = tableHeader && tableHeader.querySelector("th > form#engfilterForm") !== null;
-        courseNameColumnIndex = 1;
-        courseTimeColumnIndex = isEngQueryPage ? 10 : 9;
+        nameIndex = 1;
+        timeIndex = isEngQueryPage ? 10 : 9;
       } else if (isPlanPage) {
         pageType = "选课计划页面";
-        courseNameColumnIndex = 1;
-        courseTimeColumnIndex = 8;
+        nameIndex = 1;
+        timeIndex = 8;
       } else if (isWorkPage || isSupplyCancelPage) {
         pageType = isWorkPage ? "预选页面" : "补退选页面";
         const scopeSelector = isWorkPage ? "#scopeOneSpan" : "body";
@@ -182,26 +209,32 @@
         const targetTr = Array.from(allTrs).find((tr) => tr.textContent.includes("选课计划中本学期可选列表"));
         if (targetTr && targetTr.nextElementSibling) {
           parent = targetTr.nextElementSibling;
-          courseNameColumnIndex = 0;
-          courseTimeColumnIndex = 8;
+          nameIndex = 0;
+          timeIndex = 8;
         } else {
           return;
         }
       } else {
         return;
       }
+
+      // Save the calculated indexes for later use
+      this.courseNameColumnIndex = nameIndex;
+      this.courseTimeColumnIndex = timeIndex;
+      this.parentScope = parent;
+
       console.log(`课程冲突高亮: 正在分析 ${pageType}`);
-      const allCourses = this.extractCoursesFromPage(parent, courseTimeColumnIndex, courseNameColumnIndex);
+      const allCourses = this.extractCoursesFromPage(parent, timeIndex, nameIndex);
       const conflictElements = this.checkCoursesConflict(allCourses, selectedCourses);
-      this.highlightConflicts(allCourses, conflictElements, courseNameColumnIndex);
+      this.highlightConflicts(allCourses, conflictElements, nameIndex);
     },
   };
+
 
   // =========================================================================
   // 功能二：课程空余及满员高亮显示（进度条版）
   // =========================================================================
   const progressBar = {
-    // ... (This object's code is unchanged) ...
     COLORS: {
       LOW: "hsl(120, 70%, 80%)",
       MEDIUM: "hsl(55, 85%, 75%)",
@@ -225,8 +258,9 @@
         if (limitHeader) {
           limitHeader.style.width = this.COLUMN_WIDTH;
         }
-        const rows = table.querySelectorAll("tbody tr[class*='datagrid-']");
-        rows.forEach((row) => {
+        const dataRows = table.querySelectorAll("tbody tr:is(.datagrid-odd, .datagrid-even, .datagrid-all)");
+        console.log(`课程容量进度条: 找到 ${dataRows.length} 条课程数据行进行处理...`);
+        dataRows.forEach((row) => {
           const cell = row.cells[limitColumnIndex];
           if (!cell) return;
           cell.style.textAlign = "center";
@@ -309,14 +343,15 @@
     },
   };
 
-  // =========================================================================
-  // 功能三：为课程列表添加排序功能
-  // =========================================================================
+
+
   const tableSorter = {
     run() {
       console.log("表格排序: 正在初始化...");
       document.querySelectorAll("table.datagrid").forEach((table) => {
-        const headerRow = table.querySelector("tr.datagrid-header");
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const headerRow = tbody.querySelector("tr.datagrid-header");
         if (!headerRow) return;
 
         headerRow.querySelectorAll("th").forEach((header, index) => {
@@ -328,28 +363,26 @@
         });
       });
     },
-
     sort(table, colIndex) {
       const tbody = table.querySelector("tbody");
       if (!tbody) return;
 
-      // 1. 先把所有数据行和所有分页栏（包括旧的克隆）都找出来
-      const dataRows = Array.from(tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even)"));
+      const dataRows = Array.from(tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even, .datagrid-all)"));
       const allPaginationRows = Array.from(tbody.querySelectorAll('tr:has(form[name="pageForm"])'));
-      let masterPaginationRow = null;
 
-      // 2. 如果存在分页栏，我们就拿第一个作为“主”分页栏用于后续操作
+      if (dataRows.length === 0) return;
+
+      let masterPaginationRow = null;
       if (allPaginationRows.length > 0) {
         masterPaginationRow = allPaginationRows[0];
       }
 
-      // 排序逻辑
-      const headerItem = table.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
+      const headerItem = tbody.querySelector(`tr.datagrid-header th:nth-child(${colIndex + 1})`);
       const headerText = headerItem.textContent.trim();
       const currentDir = headerItem.dataset.sortDir || "desc";
       const newDir = currentDir === "desc" ? "asc" : "desc";
       headerItem.dataset.sortDir = newDir;
-      table
+      tbody
         .querySelectorAll("tr.datagrid-header th")
         .forEach((th) => (th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, "")));
       headerItem.innerHTML += newDir === "asc" ? " ▲" : " ▼";
@@ -388,11 +421,11 @@
         return 0;
       });
 
-      allPaginationRows.forEach(row => row.remove());
+      dataRows.forEach((row) => row.remove());
+      allPaginationRows.forEach((row) => row.remove());
 
-      // 4. 按顺序重新构建表格内容
       if (masterPaginationRow) {
-        tbody.appendChild(masterPaginationRow); // 在顶部添加主分页栏
+        tbody.appendChild(masterPaginationRow);
       }
 
       dataRows.forEach((row, i) => {
@@ -401,7 +434,140 @@
       });
 
       if (masterPaginationRow) {
-        tbody.appendChild(masterPaginationRow.cloneNode(true)); // 在底部添加主分页栏的克隆
+        tbody.appendChild(masterPaginationRow.cloneNode(true));
+      }
+    },
+  };
+
+  // =========================================================================
+  // 功能四：加载所有分页数据
+  // =========================================================================
+  const allPagesLoader = {
+    async fetchAllPages(button) {
+      const table = button.closest("table.datagrid");
+      const tbody = table.querySelector("tbody");
+      const paginationSelect = document.querySelector('select[name="netui_row"]');
+
+      if (!table || !tbody || !paginationSelect) {
+        alert("无法找到分页元素！");
+        return;
+      }
+
+      button.textContent = "正在加载中...";
+      button.disabled = true;
+
+
+      // 1. 找到包含下拉菜单的表单
+      const pageForm = paginationSelect.closest('form[name="pageForm"]');
+      if (!pageForm) {
+        alert("关键的翻页表单 'pageForm' 未找到！");
+        button.textContent = "初始化失败";
+        button.disabled = false;
+        return;
+      }
+
+      // 获取当前默认的分页选项
+      const paginationOptionElement = paginationSelect.querySelector("option[selected]");
+      const currentPage = parseInt(paginationOptionElement.innerText);
+      console.log(`当前页: ${currentPage}`);
+
+      // 2. 从表单的 action 属性构建基础 URL
+      const baseActionUrl = new URL(pageForm.action, window.location.href).href;
+
+      // 3. 获取表单中所有参数（包括所有隐藏的查询条件）
+      const formParams = new URLSearchParams();
+
+      // 4. 获取所有需要抓取的页面选项（跳过当前页）
+      const pageOptions = Array.from(paginationSelect.options).filter((opt) => parseInt(opt.innerText) !== currentPage);
+
+      // 5. 遍历页面选项，生成每一个页面的准确 URL
+      const urlsToFetch = pageOptions.map((opt) => {
+        // 在表单参数副本上，设置正确的页码
+        formParams.set("netui_row", opt.value);
+        // 组合成最终的 URL
+        return `${baseActionUrl}?${formParams.toString()}`;
+      });
+
+      console.log("所有页 URL:");
+      console.log(urlsToFetch);
+
+      if (urlsToFetch.length === 0) {
+        button.textContent = "只有一页";
+        return;
+      }
+
+      console.log(`准备获取 ${urlsToFetch.length} 个页面的数据...`);
+
+      try {
+        const responses = await Promise.all(urlsToFetch.map((url) => fetch(url)));
+        const htmlStrings = await Promise.all(responses.map((res) => res.text()));
+
+        const parser = new DOMParser();
+        const newRows = [];
+        htmlStrings.forEach((html) => {
+          const doc = parser.parseFromString(html, "text/html");
+          const rows = doc.querySelectorAll("table.datagrid tbody tr:is(.datagrid-odd, .datagrid-even)");
+          newRows.push(...rows);
+        });
+
+        console.log(`成功获取了 ${newRows.length} 条新的课程数据。`);
+
+        // 移除页面底部的所有翻页行
+        const allPaginationRows = tbody.querySelectorAll('tr:has(form[name="pageForm"])');
+        allPaginationRows.forEach((row) => row.remove());
+
+        // 将新抓取的数据行添加到表格中
+        const fragment = document.createDocumentFragment();
+        newRows.forEach((row) => fragment.appendChild(row));
+        tbody.appendChild(fragment);
+
+        button.textContent = "全部加载完毕！";
+        button.style.backgroundColor = "#90ee90";
+
+        // --- THIS IS THE KEY CHANGE ---
+        // Instead of conflictHighlighter.run(), we call the new reHighlight()
+        if (GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true)) {
+          conflictHighlighter.reHighlight();
+        }
+        // --- END OF KEY CHANGE ---
+
+        if (GM_getValue(CONFIG_PROGRESS_BAR_ENABLED, true)) {
+          progressBar.run();
+        }
+
+        // 重新计算并设置所有数据行的奇偶样式
+        const allDataRows = tbody.querySelectorAll("tr:is(.datagrid-odd, .datagrid-even)");
+        allDataRows.forEach((row, i) => {
+          row.className = i % 2 === 0 ? "datagrid-odd" : "datagrid-even";
+        });
+      } catch (error) {
+        console.error("加载所有页面时出错:", error);
+        button.textContent = "加载失败，请查看控制台";
+        button.style.backgroundColor = "#ffcccb";
+        button.disabled = false;
+      }
+    },
+
+    run() {
+      console.log("加载所有页: 正在初始化...");
+      const paginationCell = document.querySelector('tr:has(form[name="pageForm"]) > td[align="right"]');
+      // 总页数
+      const totalPages = Array.from(paginationCell.querySelectorAll("option")).length;
+      console.log(`加载所有页: 检测到总页数为 ${totalPages}`);
+      if (totalPages <= 1) return;
+      if (paginationCell && !document.getElementById("load-all-pages-btn")) {
+        const loadButton = document.createElement("button");
+        loadButton.id = "load-all-pages-btn";
+        loadButton.textContent = "✨ 加载所有页";
+        loadButton.style.marginLeft = "15px";
+        loadButton.style.padding = "2px 8px";
+        loadButton.style.cursor = "pointer";
+        loadButton.style.border = "1px solid #ccc";
+        loadButton.style.borderRadius = "4px";
+
+        loadButton.addEventListener("click", (e) => this.fetchAllPages(e.target));
+
+        paginationCell.appendChild(loadButton);
       }
     },
   };
@@ -410,7 +576,6 @@
   // 脚本菜单注册与主执行逻辑
   // =========================================================================
   function setupMenu() {
-    // ... (This function's code is unchanged) ...
     let highlightEnabled = GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true);
     let progressBarEnabled = GM_getValue(CONFIG_PROGRESS_BAR_ENABLED, true);
     let tableSorterEnabled = GM_getValue(CONFIG_TABLE_SORTER_ENABLED, true);
@@ -447,16 +612,17 @@
   }
 
   function main() {
-    // ... (This function's code is unchanged) ...
-    if (GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true)) {
-      conflictHighlighter.run();
-    }
+    // 依次执行各项功能
     if (GM_getValue(CONFIG_PROGRESS_BAR_ENABLED, true)) {
       progressBar.run();
     }
     if (GM_getValue(CONFIG_TABLE_SORTER_ENABLED, true)) {
       tableSorter.run();
     }
+    if (GM_getValue(CONFIG_HIGHLIGHT_ENABLED, true)) {
+      conflictHighlighter.run();
+    }
+    allPagesLoader.run();
   }
 
   // --- 脚本启动 ---
