@@ -71,6 +71,10 @@
 - ✅/❌ 进度条溢出显示
 - ✅/❌ 表格排序
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/eaa85967-52ab-4afe-9fc8-86fe2628e2c4" alt="TamperMonkey 菜单" width="50%" height="auto" style="display: block; margin: 0 auto;">
+</p>
+
 ## 📋 使用提示
 
 1. **首次使用**：必须先访问"已选课程"页面进行数据初始化
