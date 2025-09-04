@@ -2,8 +2,8 @@
 // @name         Refined Elective
 // @namespace    https://greasyfork.org/users/1429968
 // @version      1.4.0
-// @description  选课网体验增强 (加载所有页 & 分页栏置顶/置底 & 百分比排序)
-// @author       ha0xin & Gemini
+// @description  选课网体验增强
+// @author       ha0xin
 // @match        https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/*
 // @exclude      https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/courseQuery/goNested.do*
 // @license      MIT License
@@ -230,7 +230,6 @@
     },
   };
 
-
   // =========================================================================
   // 功能二：课程空余及满员高亮显示（进度条版）
   // =========================================================================
@@ -343,8 +342,9 @@
     },
   };
 
-
-
+  // =========================================================================
+  // 功能三：课程排序
+  // =========================================================================
   const tableSorter = {
     run() {
       console.log("表格排序: 正在初始化...");
@@ -455,7 +455,6 @@
 
       button.textContent = "正在加载中...";
       button.disabled = true;
-
 
       // 1. 找到包含下拉菜单的表单
       const pageForm = paginationSelect.closest('form[name="pageForm"]');
