@@ -58,12 +58,7 @@
       const texts = html.split("|").filter((t) => t.trim());
       
       texts.forEach((text) => {
-        const cleanText = text.trim();
-        // 跳过不包含时间信息的行（如"考试时间"、"考试方式"等）
-        if (!cleanText || cleanText.includes("考试") || cleanText.length < 5) {
-          return;
-        }
-        
+        const cleanText = text;
         const segment = this.parseTimeSegment(cleanText);
         if (segment.day && segment.sections.length > 0) {
           timeSegments.push(segment);
