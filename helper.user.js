@@ -128,10 +128,10 @@
       
       // 查找关键列的索引
       const nameIndex = headers.findIndex(h => h.includes("课程名") || h === "课程名");
-      // 优先查找"上课时间"列，如果没有则查找"教室信息"列（教室信息中包含时间）
+      // 优先查找"上课时间"列，如果没有则查找"教室信息"列或"上课/考试信息"列
       let timeIndex = headers.findIndex(h => h.includes("上课时间"));
       if (timeIndex === -1) {
-        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室"));
+        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室") || h.includes("上课/考试") || h.includes("上课") && h.includes("考试"));
       }
       const statusIndex = headers.findIndex(h => h.includes("选课结果") || h.includes("结果"));
       
@@ -267,10 +267,10 @@
       console.log(`课程冲突高亮: ${pageType}的表头列:`, headers);
       
       const nameIndex = headers.findIndex(h => h.includes("课程名") || h === "课程名");
-      // 优先查找"上课时间"列，如果没有则查找"教室信息"列
+      // 优先查找"上课时间"列，如果没有则查找"教室信息"列或"上课/考试信息"列
       let timeIndex = headers.findIndex(h => h.includes("上课时间"));
       if (timeIndex === -1) {
-        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室"));
+        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室") || h.includes("上课/考试") || h.includes("上课") && h.includes("考试"));
       }
       
       if (nameIndex === -1 || timeIndex === -1) {
