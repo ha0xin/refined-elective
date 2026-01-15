@@ -131,7 +131,7 @@
       // 优先查找"上课时间"列，如果没有则查找"教室信息"列或"上课/考试信息"列
       let timeIndex = headers.findIndex(h => h.includes("上课时间"));
       if (timeIndex === -1) {
-        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室") || h.includes("上课/考试") || h.includes("上课") && h.includes("考试"));
+        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室") || h.includes("上课/考试") || (h.includes("上课") && h.includes("考试")));
       }
       const statusIndex = headers.findIndex(h => h.includes("选课结果") || h.includes("结果"));
       
@@ -270,7 +270,13 @@
       // 优先查找"上课时间"列，如果没有则查找"教室信息"列或"上课/考试信息"列
       let timeIndex = headers.findIndex(h => h.includes("上课时间"));
       if (timeIndex === -1) {
-        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室") || h.includes("上课/考试") || h.includes("上课") && h.includes("考试"));
+        timeIndex = headers.findIndex(
+          h =>
+            h.includes("教室信息") ||
+            h.includes("教室") ||
+            h.includes("上课/考试") ||
+            (h.includes("上课") && h.includes("考试"))
+        );
       }
       
       if (nameIndex === -1 || timeIndex === -1) {
