@@ -10,6 +10,8 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @downloadURL https://update.greasyfork.org/scripts/525548/Refined%20Elective.user.js
+// @updateURL https://update.greasyfork.org/scripts/525548/Refined%20Elective.meta.js
 // ==/UserScript==
 
 (function () {
@@ -49,15 +51,25 @@
     parseCourseTime(cell) {
       const timeSegments = [];
       if (!cell) return timeSegments;
-      const html = cell.innerHTML.replace(/<br\s*\/?>/g, "|");
+      
+      // 获取单元格内容，处理 <br> 标签和其他HTML标签
+      const html = cell.innerHTML.replace(/<br\s*\/?>/gi, "|")
+                               .replace(/<[^>]+>/g, ""); // 移除其他HTML标签
       const texts = html.split("|").filter((t) => t.trim());
+      
       texts.forEach((text) => {
-        const cleanText = text.replace(/周数信息.*?节/g, "");
+        const cleanText = text.trim();
+        // 跳过不包含时间信息的行（如"考试时间"、"考试方式"等）
+        if (!cleanText || cleanText.includes("考试") || cleanText.length < 5) {
+          return;
+        }
+        
         const segment = this.parseTimeSegment(cleanText);
         if (segment.day && segment.sections.length > 0) {
           timeSegments.push(segment);
         }
       });
+      
       return timeSegments;
     },
     isConflict(seg1, seg2) {
@@ -104,26 +116,59 @@
       return allCourses;
     },
     extractSelectedCourses() {
+      // 首先找到表头，动态确定列索引
+      const headerRow = document.querySelector("table.datagrid tr.datagrid-header");
+      if (!headerRow) {
+        console.log("课程冲突高亮: 未找到表头，无法提取已选课程。");
+        return [];
+      }
+      
+      const headers = Array.from(headerRow.querySelectorAll("th")).map(th => th.textContent.trim().replace(/ [▲▼]$/, ""));
+      console.log("课程冲突高亮: 检测到的表头列:", headers);
+      
+      // 查找关键列的索引
+      const nameIndex = headers.findIndex(h => h.includes("课程名") || h === "课程名");
+      // 优先查找"上课时间"列，如果没有则查找"教室信息"列（教室信息中包含时间）
+      let timeIndex = headers.findIndex(h => h.includes("上课时间"));
+      if (timeIndex === -1) {
+        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室"));
+      }
+      const statusIndex = headers.findIndex(h => h.includes("选课结果") || h.includes("结果"));
+      
+      console.log(`课程冲突高亮: 列索引 - 课程名: ${nameIndex}, 上课时间: ${timeIndex}, 选课结果: ${statusIndex}`);
+      
+      if (timeIndex === -1) {
+        console.log("课程冲突高亮: 警告 - 未找到'上课时间'列，无法提取时间信息！");
+        alert("警告：选课结果页面中未找到'上课时间'列。\n课程冲突高亮功能需要时间信息才能工作。\n\n请检查页面是否完整加载，或者该页面可能不支持此功能。");
+        return [];
+      }
+      
       const rows = document.querySelectorAll("table.datagrid tr:is(.datagrid-odd, .datagrid-even)");
       const selectedCourses = [];
       rows.forEach((row) => {
         const cells = row.querySelectorAll("td");
-        if (cells.length < 10) return;
-        const timeCell = cells[7];
-        const statusCell = cells[9];
+        if (cells.length <= Math.max(nameIndex, timeIndex, statusIndex)) return;
+        
+        const timeCell = cells[timeIndex];
+        const statusCell = statusIndex !== -1 ? cells[statusIndex] : null;
+        const nameCell = nameIndex !== -1 ? cells[nameIndex] : cells[0];
+        
         const timeSegments = this.parseCourseTime(timeCell);
-        if (
-          timeSegments.length > 0 &&
-          statusCell &&
-          (statusCell.textContent.trim() === "已选上" || statusCell.textContent.trim() === "待抽签")
-        ) {
+        
+        // 如果有状态列，检查状态；否则只要有时间信息就认为是已选课程
+        const isSelected = statusCell 
+          ? (statusCell.textContent.trim() === "已选上" || statusCell.textContent.trim() === "待抽签")
+          : true;
+        
+        if (timeSegments.length > 0 && isSelected) {
           selectedCourses.push({
             element: row,
-            name: cells[0].textContent.trim(),
+            name: nameCell.textContent.trim(),
             timeSegments: timeSegments,
           });
         }
       });
+      console.log(`课程冲突高亮: 提取到 ${selectedCourses.length} 门已选课程`);
       return selectedCourses;
     },
     highlightConflicts(allCourses, conflictElements, courseNameColumnIndex) {
@@ -186,20 +231,13 @@
         return;
       }
 
-      let nameIndex,
-        timeIndex,
-        parent = document;
+      let parent = document;
       let pageType = "";
+      
       if (isQueryPage) {
         pageType = "添加课程页面";
-        const tableHeader = document.querySelector("table.datagrid tr[class*='datagrid-']");
-        const isEngQueryPage = tableHeader && tableHeader.querySelector("th > form#engfilterForm") !== null;
-        nameIndex = 1;
-        timeIndex = isEngQueryPage ? 10 : 9;
       } else if (isPlanPage) {
         pageType = "选课计划页面";
-        nameIndex = 1;
-        timeIndex = 8;
       } else if (isWorkPage || isSupplyCancelPage) {
         pageType = isWorkPage ? "预选页面" : "补退选页面";
         const scopeSelector = isWorkPage ? "#scopeOneSpan" : "body";
@@ -209,12 +247,34 @@
         const targetTr = Array.from(allTrs).find((tr) => tr.textContent.includes("选课计划中本学期可选列表"));
         if (targetTr && targetTr.nextElementSibling) {
           parent = targetTr.nextElementSibling;
-          nameIndex = 0;
-          timeIndex = 8;
         } else {
           return;
         }
       } else {
+        return;
+      }
+      
+      // 动态查找表头列索引
+      const headerRow = parent.querySelector("table.datagrid tr.datagrid-header");
+      if (!headerRow) {
+        console.log(`课程冲突高亮: 在${pageType}未找到表头，跳过。`);
+        return;
+      }
+      
+      const headers = Array.from(headerRow.querySelectorAll("th")).map(th => 
+        th.textContent.trim().replace(/ [▲▼]$/, "")
+      );
+      console.log(`课程冲突高亮: ${pageType}的表头列:`, headers);
+      
+      const nameIndex = headers.findIndex(h => h.includes("课程名") || h === "课程名");
+      // 优先查找"上课时间"列，如果没有则查找"教室信息"列
+      let timeIndex = headers.findIndex(h => h.includes("上课时间"));
+      if (timeIndex === -1) {
+        timeIndex = headers.findIndex(h => h.includes("教室信息") || h.includes("教室"));
+      }
+      
+      if (nameIndex === -1 || timeIndex === -1) {
+        console.log(`课程冲突高亮: ${pageType}未找到必要的列（课程名或时间），跳过。`);
         return;
       }
 
@@ -585,6 +645,10 @@
     run() {
       console.log("加载所有页: 正在初始化...");
       const paginationCell = document.querySelector('tr:has(form[name="pageForm"]) > td[align="right"]');
+      if (!paginationCell) {
+        console.log("加载所有页: 未找到分页元素，跳过初始化。");
+        return;
+      }
       // 总页数
       const totalPages = Array.from(paginationCell.querySelectorAll("option")).length;
       console.log(`加载所有页: 检测到总页数为 ${totalPages}`);
