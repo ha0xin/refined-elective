@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Refined Elective
 // @namespace    https://greasyfork.org/users/1429968
-// @version      1.4.1
+// @version      1.4.2
 // @description  选课网体验增强
 // @author       ha0xin
 // @match        https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/*
@@ -54,7 +54,7 @@
       
       // 获取单元格内容，处理 <br> 标签和其他HTML标签
       const html = cell.innerHTML.replace(/<br\s*\/?>/gi, "|")
-                               .replace(/<[^>]+>/g, ""); // 移除其他HTML标签
+
       const texts = html.split("|").filter((t) => t.trim());
       
       texts.forEach((text) => {
